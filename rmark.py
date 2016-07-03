@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+# coding: UTF-8
 """
     This is a RapidMark Language interpreter
     Translate RapidMark to LaTeX
@@ -11,23 +12,145 @@ import os
 import sys
 
 
+##########################################################################################
 def _load_conf ( conf_file ) :
     """ Load configure from file.
     File priority: specified file - default file - function inside configure
     """
-    return ""
+    cfile = conf_file if conf_file != "" else "~/.rapidmark.conf"
+    if os.path.isfile(cfile) :
+        f = open(cfile, "r")
+        c = f.readlines()
+        f.close()
+    else :
+        c = ["""
+\documentclass[a4paper,12pt]{article}
+\usepackage{graphicx}
+\usepackage[top=2cm,bottom=2.5cm,left=2cm,right=2cm]{geometry}
+\usepackage{xeCJK}
+\usepackage{indentfirst}
+\usepackage{color}
+\usepackage{epsfig}
+\setlength{\baselineskip}{10pt}
+\setlength{\parindent}{2em}
+\renewcommand{\figurename}{图}
+\renewcommand{\tablename}{表}
 
-def _mark_line ( line, status ) :
-    """ Interprete one line
+\makeatletter
+\renewcommand\section{\@startsection{section}{0}{\z@}%
+{-2.5ex \@plus -1ex \@minus -.2ex}%
+{1.3ex \@plus.2ex}%
+{\normalfont\large\CJKfamily{hei}}}
+
+\renewcommand\subsection{\@startsection{subsection}{1}{\z@}%
+{-1.5ex \@plus -1ex \@minus -.2ex}%
+{0.5ex \@plus.2ex}%
+{\normalfont\normalsize\CJKfamily{hei}}}
+\makeatother
+""" ]
+
+    return c
+
+##########################################################################################
+def _transfer_char ( line ) :
+    """ Transfer escape character back to normal format
+    including: \# \* \+ \- \@ \\
     """
-    pass
+    return line.replace('\\#', '#') \
+               .replace('\\*', '*') \
+               .replace('\\+', '+') \
+               .replace('\\@', '@') \
+               .replace('\\\\', '\\')
 
-def _mark_file ( file, conf ) :
+def _process_title ( levelname, title ) :
+    """ Process title line, main purpose is process with *
+    """
+    if title[0] == "*" :
+        outline = "\\%s*{%s}" % (levelname, _transfer_char(title[1:].strip()))
+    else :
+        outline = "\\%s{%s}" % (levelname, _transfer_char(title))
+    return outline
+
+##########################################################################################
+def _process_line ( line, status ) :
+    """ Interprete one line
+    status:
+        0  : initial status
+        10x: table mode
+            100: normal table mode
+            101: inside caotion
+            102: inside label
+            105: inside format line
+        20x: figure mode
+            200: normal figure mode
+            201: inside caotion
+            202: inside label
+            204: inside figure filename
+            205: inside size
+        30x: list mode
+            301: itemize (*)
+            302: enumerate (+)
+            303: descript (-)
+    """
+
+    if line.startswith("@@") :
+        outline = ""
+
+    elif line.startswith("#####") :
+        outline = _process_title ( "subparagraph", line[5:].strip() )
+
+    elif line.startswith("####") :
+        outline = _process_title ( "paragraph", line[4:].strip() )
+
+    elif line.startswith("###") :
+        outline = _process_title ( "subsubsection", line[3:].strip() )
+
+    elif line.startswith("##") :
+        outline = _process_title ( "subsection", line[2:].strip() )
+
+    elif line.startswith("#") :
+        outline = _process_title ( "section", line[1:].strip() )
+
+    elif line.startswith("@toc") :
+        outline = "\\tableofcontent"
+
+    elif line.startswith("@newpage") :
+        outline = "\\newpage"
+
+    elif line.startswith("@maketitle") :
+        outline = "\\maketitle"
+
+    elif line.startswith("@title") :
+        outline = _process_title ( "title", line[6:].strip() )
+
+    elif line.startswith("@author") :
+        outline = _process_title ( "author", line[7:].strip() )
+
+    elif line.startswith("@date") :
+        outline = _process_title ( "date", line[5:].strip() )
+
+    return outline, status
+
+##########################################################################################
+def _process_file ( file ) :
     """ Interprete whole file
     """
-    return []
+    # Load file
+    f = open(file, "r")
+    lines = f.readlines()
+    f.close()
+
+    # Process
+    status = 0
+    result = []
+    for line in lines:
+        r, status = _process_line(line.strip(), status)
+        result.append(r)
+
+    return result
 
 
+##########################################################################################
 if __name__ == "__main__" :
     # default configure
     version = """RapidMark Interpreter 0.01
@@ -91,8 +214,10 @@ if __name__ == "__main__" :
 
     # all done, begin
     conf = _load_conf (conf_file)
-    result = _mark_file (in_rmk_file, conf)
+    result = _process_file (in_rmk_file)
     f = open(out_tex_file, "w")
+    for c in conf:
+        f.write(c + "\n")
     for r in result:
         f.write(r + "\n")
     f.close()
