@@ -314,6 +314,7 @@ def _process_line ( line, status ) :
             outline = ("    \\end{tabular}\n" +
                        "  \\end{center}\n" +
                        "\\end{table}\n")
+            status = 0
         else :
             outline = _process_table_line(line)
 
