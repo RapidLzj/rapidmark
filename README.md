@@ -15,11 +15,11 @@ Transfer rules:
 
 All leading and tailing space or tab is omitted.
 
-### Comment
-
-A line start with @@ is a comment.
-
+A line starts with @@ is a comment.
 Comment must be write in a standalone line.
+
+A line ends with ... is to be continued, next line will be joined.
+A comment line cannot be continued or joined.
 
 ### Section titles
 
@@ -60,9 +60,13 @@ Label and caption can be omitted.
 
 Format line: |c|l|r|... same as LaTeX
 
-Body lines: also same as LaTeX, but use --- in a standlone line to stand for a horizon line. 
+Caption and label must be in the declare line, continue mark accepted. The format line must be the first line after declare, and cannot be omitted.
 
-Difference: end of line default present a new row in table. If want to sperate a line in two or more lines, must use ... at end to present a unfinished line.
+Body lines: also same as LaTeX, but use --- at line end to stand for a horizon line. 
+
+Difference: end of line default present a new row in table. If want to sperate a line in two or more lines, must use continue line.
+
+An empty line will end the table.
 
 ### @figure
 
@@ -72,6 +76,8 @@ Label and caption can be omitted.
 
 You can write like this: 10cm\*? or ?\*38mm, or ?\*?.
 If width and height are all omitted, size description is not necessory.
+
+All info must be finished in the declare line, continue mark accepted.
 
 ### List
 
@@ -93,11 +99,11 @@ Use formater character to enclose those text with format
 
 *Special format will work in same line, not good when go to next line.*
 
-| formater | format |
-|----------|--------|
-| \*xxx\*     | emphasis (italic) |
-| \*\*xxx\*\* | bold |
-| \_xxx\_     | underlined |
+| mark | format | sample |
+|------|--------|--------|
+| \*xxx\*     | emphasis (italic) | this *text* is sample |
+| \*\*xxx\*\* | bold | this **text** is sample |
+| \_xxx\_     | underlined | this _text_ is sample |
 
 Other text transfered directly to LaTeX command or text.
 
@@ -107,3 +113,28 @@ This system is just for myself, make me easy when write LaTeX file.
 Not response for others.
 
 If any suggestions, tell me at lzj@lzj.name
+
+## Line Reduce
+
+### Line Status
+
+* `0`  : initial status, normal status, all text will be normal transfered.
+* `10x`: table mode
+    - `100`: normal table mode, split by & or |, process inline format inside cell
+    - `101`: table format mode, waiting for format line, the next line will be not be processed
+    - Any empty line will finish table, if need a empty line in table, use a ... in prior line
+    - Caption, label must be finished in first line, continue mark can be used
+    - Format line must be the first line after table declare
+* `20x`: figure mode
+    - Since all info in one line, no soecial status for figure.
+* `30x`: list mode
+    - `301`: itemize (*)
+    - `302`: enumerate (+)
+    - `303`: descript (-)
+    - Nested list not supported. Any empty line will end the list. Empty line between will make a new list.
+
+When a status is off, will set status to -1, then the whole process 
+
+### Inline format status
+
+Format mark must be next to a non-space character.
