@@ -15,13 +15,13 @@ import sys
 ##########################################################################################
 def _load_conf ( conf_file ) :
     """ Load configure from file.
-    File priority: specified file - default file - function inside configure
+    File priority: specified file - same name configure - global default file - function inside configure
     """
-    cfile = conf_file if conf_file != "" else "~/.rapidmark.conf"
-    if os.path.isfile(cfile) :
-        f = open(cfile, "r")
-        c = f.readlines()
+    if os.path.isfile(conf_file) :
+        f = open(conf_file, "r")
+        lines = f.readlines()
         f.close()
+        c = [line.strip() for line in lines]
     else :
         c = ["""\\documentclass[a4paper,12pt]{article}
 \\usepackage{graphicx}
@@ -46,11 +46,18 @@ def _load_conf ( conf_file ) :
 {0.5ex \\@plus.2ex}%
 {\\normalfont\\normalsize\\CJKfamily{hei}}}
 \\makeatother
+""", "@@table  htbp", "@@figure htbp" ]
 
-\\begin{document}
-""" ]
+    preamble, conf_tab, conf_fig = [], "htbp", "htbp"
+    for cl in c :
+        if cl.startswith("@@table") :
+            conf_tab = cl[7:].strip()
+        elif cl.startswith("@@figure") :
+            conf_fig = cl[8:].strip()
+        else :
+            preamble.append(cl)
 
-    return c
+    return (preamble, conf_tab, conf_fig)
 
 ##########################################################################################
 def _load_file ( file ) :
@@ -122,11 +129,14 @@ def _process_format_one ( line, formatchar, formatstr ) :
 def _process_format ( line ) :
     """ Process emph, bold, underline format
     """
-    xline = line.replace("\\*", "\x81").replace("\\_", "\x82").replace("**", "\x83")
-    xline = _process_format_one(xline, "*", "emph")
-    xline = _process_format_one(xline, "_", "underline")
-    xline = _process_format_one(xline, "\x83", "textbf")
-    xline = xline.replace("\x81", "*").replace("\x82", "\\_").replace("\x83", "**") \
+    xline = line.replace("\\*", "\x11").replace("\\_", "\x12").replace("**", "\x13")
+    xpart = xline.split("$")
+    for i in range(0, len(xpart), 2) :
+        xpart[i] = _process_format_one(xpart[i], "*", "emph")
+        xpart[i] = _process_format_one(xpart[i], "_", "underline")
+        xpart[i] = _process_format_one(xpart[i], "\x13", "textbf")
+    xline = "$".join(xpart)
+    xline = xline.replace("\x11", "*").replace("\x12", "\\_").replace("\x13", "**") \
                  .replace("\\+", "+").replace("\\@", "@").replace("\\#", "#")
     return xline
 
@@ -150,23 +160,23 @@ def _process_tabfig_head ( line, tabfig ) :
     All part can be omitted. For figure, file must present, but not check here
     return a 5-item tuple: caption, label, file, width, height
     """
-    xline = line.replace("\\[", "\x91").replace("\\]", "\x92") \
-                .replace("\\<", "\x93").replace("\\>", "\x94") \
-                .replace("\\(", "\x95").replace("\\)", "\x96")
+    xline = line.replace("\\[", "\x11").replace("\\]", "\x12") \
+                .replace("\\<", "\x13").replace("\\>", "\x14") \
+                .replace("\\(", "\x15").replace("\\)", "\x16")
     # caption
     p1, p2 = xline.find("["), xline.find("]")
     if p1 > -1 and p2 > p1 :
-        cap = xline[p1+1:p2].replace("\x91", "\\[").replace("\x92", "\\]") \
-                            .replace("\x93", "\\<").replace("\x94", "\\>") \
-                            .replace("\x95", "\\(").replace("\x96", "\\)")
+        cap = xline[p1+1:p2].replace("\x11", "\\[").replace("\x12", "\\]") \
+                            .replace("\x13", "\\<").replace("\x14", "\\>") \
+                            .replace("\x15", "\\(").replace("\x16", "\\)")
     else :
         cap = ""
     # label
     p1, p2 = xline.find("<"), xline.find(">")
     if p1 > -1 and p2 > p1 :
-        lbl = xline[p1+1:p2].replace("\x91", "\\[").replace("\x92", "\\]") \
-                            .replace("\x93", "\\<").replace("\x94", "\\>") \
-                            .replace("\x95", "\\(").replace("\x96", "\\)")
+        lbl = xline[p1+1:p2].replace("\x11", "\\[").replace("\x12", "\\]") \
+                            .replace("\x13", "\\<").replace("\x14", "\\>") \
+                            .replace("\x15", "\\(").replace("\x16", "\\)")
     else :
         lbl = ""
 
@@ -177,9 +187,9 @@ def _process_tabfig_head ( line, tabfig ) :
     # figure file
     p1, p2 = xline.find("("), xline.find(")")
     if p1 > -1 and p2 > p1 :
-        fig = xline[p1+1:p2].replace("\x91", "\\[").replace("\x92", "\\]") \
-                            .replace("\x93", "\\<").replace("\x94", "\\>") \
-                            .replace("\x95", "\\(").replace("\x96", "\\)")
+        fig = xline[p1+1:p2].replace("\x11", "\\[").replace("\x12", "\\]") \
+                            .replace("\x13", "\\<").replace("\x14", "\\>") \
+                            .replace("\x15", "\\(").replace("\x16", "\\)")
     else :
         fig = ""
     # figure size
@@ -198,7 +208,7 @@ def _process_tabfig_head ( line, tabfig ) :
     return cap, lbl, fig, wid, hgh
 
 ##########################################################################################
-def _process_figure ( line ) :
+def _process_figure ( line, conf ) :
     """ Process figure, extract caption, label, size
     """
     cap, lbl, fig, wid, hgh = _process_tabfig_head(line, "f")
@@ -210,7 +220,7 @@ def _process_figure ( line ) :
         siz = "[height=%s]" % (hgh)
     else :
         siz = ""
-    return ( "\\begin{figure}[htbp]\n" +
+    return ( "\\begin{figure}[" + conf[2] + "]\n" +
              "  \\begin{center}\n"
              "    \\includegraphics" + siz + "{" + fig + "}\n"
              "    \\caption{" + _process_format(cap) + "}\n"
@@ -219,11 +229,11 @@ def _process_figure ( line ) :
              "\\end{figure}" )
 
 ##########################################################################################
-def _process_table_head ( line ) :
+def _process_table_head ( line, conf ) :
     """ Process table head, extract caption, label
     """
     cap, lbl = _process_tabfig_head(line, "t")
-    return ( "\\begin{table}\n" +
+    return ( "\\begin{table}[" + conf[1] + "]\n" +
              "  \\caption{" + _process_format(cap) + "}\n" +
              "  \\label{" + lbl + "}\n" +
              "  \\begin{center}\n" +
@@ -235,24 +245,30 @@ def _process_table_line ( line ) :
     """
     if line.endswith("---") :
         xline = line[:-3]
-        hline = "\\\\ \\hline"
+        hline = "\\hline"
     else :
         xline = line
-        hline = "\\\\"
+        hline = ""
 
     cell = xline.replace("\\&", "\x80").split("&")
     xline = _process_format(cell[0])
     for c in cell[1:] :
         xline += " & " + _process_format(c)
+    if xline != "" :
+        xline += "\\\\"
 
     return "      " + xline.replace("\x80", "\\&") + hline
 
 ##########################################################################################
-def _process_line ( line, status ) :
+def _process_line ( line, status, conf ) :
     """ Interprete one line
     """
 
-    if status == 0 :
+    if line.startswith("~~") :
+        # An empty line keeps the status unchanged
+        outline = ''
+
+    elif status == 0 :
 
         if line.startswith("#####") :
             outline = _process_title ( "\\subparagraph",  line[5:].strip() )
@@ -283,13 +299,13 @@ def _process_line ( line, status ) :
 
         elif line.startswith("@table") :
             status = 101
-            outline = _process_table_head(line[6:].strip())
+            outline = _process_table_head(line[6:].strip(), conf)
 
         elif line.startswith("@figure") :
-            outline = _process_figure(line[6:].strip())
+            outline = _process_figure(line[6:].strip(), conf)
 
         elif line.startswith("@toc") :
-            outline = "\\tableofcontent"
+            outline = "\\tableofcontents"
 
         elif line.startswith("@newpage") :
             outline = "\\newpage"
@@ -306,10 +322,22 @@ def _process_line ( line, status ) :
         elif line.startswith("@date") :
             outline = _process_title ( "\\date", line[5:].strip() )
 
+        elif line.startswith("@abstract") :
+            outline = "\\begin{abstract}"
+            status = 400
+            if len(line) > 9 :
+                outline += "\n" + _process_format(line[9:].strip())
+
+        elif line.startswith("@keywords") :
+            outline = ("\\begin{keywords}\n" +
+                       _process_format(line[9:].strip()) +
+                       "\n\\end{keywords}")
+
         else :
             outline = _process_format(line.strip())
 
     elif status == 100 :
+        # table line
         if line == "" :
             outline = ("    \\end{tabular}\n" +
                        "  \\end{center}\n" +
@@ -319,10 +347,12 @@ def _process_line ( line, status ) :
             outline = _process_table_line(line)
 
     elif status == 101 :
+        # table column define
         status = 100
         outline = "      {" + line + "}"
 
     elif status == 301 :
+        # list
         if line.startswith("* ") :
             outline = _process_title ("  \\item",line[1:].strip(), False)
         else :
@@ -337,11 +367,19 @@ def _process_line ( line, status ) :
             status = -1
 
     elif status == 303 :
-        if line.startswith("-") :
+        if line.startswith("- ") :
             outline = _process_title ("  \\item",line[1:].strip(), False)
         else :
             outline = "\\end{descript}"
             status = -1
+
+    elif status == 400 :
+        #abstract
+        if line == "" :
+            outline = "\\end{abstract}\n"
+            status = 0
+        else :
+            outline = _process_format(line.strip())
 
     else :
         outline = line
@@ -349,7 +387,7 @@ def _process_line ( line, status ) :
     return outline, status
 
 ##########################################################################################
-def _process_file ( file ) :
+def _process_file ( file, conf ) :
     """ Interprete whole file
     """
     # Load file
@@ -359,15 +397,15 @@ def _process_file ( file ) :
     status = 0
     result = []
     for line in lines:
-        r, status = _process_line(line, status)
+        r, status = _process_line(line, status, conf)
         result.append(r)
         if status == -1 :
-            r, status = _process_line(line, 0)
+            r, status = _process_line(line, 0, conf)
             result.append(r)
 
     if status > 0 :
         # if last line did not close status, add an empty line
-        r, status = _process_line("", status)
+        r, status = _process_line("", status, conf)
         result.append(r)
 
     return result
@@ -376,8 +414,9 @@ def _process_file ( file ) :
 ##########################################################################################
 if __name__ == "__main__" :
     # default configure
-    version = """RapidMark Interpreter 0.01
-    By Jie Zheng, 2016-07-02 Tucso
+    version = """RapidMark Interpreter
+    0.01 By Jie Zheng, 2016-07-02 Tucson
+    0.10 2016-07-07 Tucson
     (C) Seagull Softstudio"""
     helpinfo = """Syntax:
     rmark in_rmk_file [-o out_tex_file] [-c configure_file] [-h] [-v] [-w]
@@ -385,11 +424,13 @@ if __name__ == "__main__" :
     -h: print this help info and exit
     -v: print version info and exit
     -w: overwrite if output file exists, else will fail
+    -l: execute xelatex to compile tex file to pdf
     """
     out_tex_file = ""
     in_rmk_file = ""
     conf_file = ""
     overwrite = False
+    call_latex = False
     # command line configure
     for a in range(1, len(sys.argv)) :
         if sys.argv[a] == "-h" :
@@ -403,6 +444,9 @@ if __name__ == "__main__" :
         elif sys.argv[a] == "-w" :
             # set overwrite flag
             overwrite = True
+        elif sys.argv[a] == "-l" :
+            # set call latex flag
+            call_latex = True
         elif sys.argv[a][0:2] == "-o" :
             # followed substring or next string is output file
             if len(sys.argv[a]) > 3 :
@@ -434,17 +478,35 @@ if __name__ == "__main__" :
     if not overwrite and os.path.isfile(out_tex_file) :
         print ("error: output file already exists '%s'\nUse -h for help" % out_tex_file)
         exit(4)
+    if conf_file == "" :
+        conf_file = os.path.splitext(in_rmk_file)[0] + ".conf"
+    if not os.path.isfile(conf_file) :
+        conf_file = "~/.rapidmark.conf"
 
     # all done, begin
     conf = _load_conf (conf_file)
-    result = _process_file (in_rmk_file)
+    result = _process_file (in_rmk_file, conf)
+
+    # output to tex file
     f = open(out_tex_file, "w")
-    for c in conf:
+    for c in conf[0]:
         f.write(c + "\n")
+    f.write("\n\\begin{document}\n")
     for r in result:
         f.write(r + "\n")
     f.write("\n\\end{document}\n")
     f.close()
 
+    print ("Success in interprete '%s' to '%s'." % (in_rmk_file, out_tex_file))
+
+    if call_latex :
+        out_pdf_file = os.path.splitext(out_tex_file)[0] + ".pdf"
+        print ("Execute xelatex ......")
+        etc = os.system("xelatex " + out_tex_file)
+        if os.path.isfile(out_pdf_file) :
+            os.system("open " + out_pdf_file)
+    else :
+        etc = 0
+
     # OK!
-    exit(0)
+    exit(etc)
